@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "liberty_gen"
+version = "0.1.0"
+description = "ngspice-based Liberty characterizer for SRAM macros"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+
+[tool.hatch.build.targets.wheel]
+packages = ["liberty_gen"]
