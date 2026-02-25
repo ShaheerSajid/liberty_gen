@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import shutil
 import subprocess
 import tempfile
 from typing import Optional
@@ -50,18 +51,24 @@ def run_ngspice(deck: str, timeout: int = 180) -> dict[str, Optional[float]]:
     * Voltage measures (``q_sample``): returned in volts, unchanged.
     * Integral measures (``i_avg``, ``i_op``): returned in SI units (A·s), unchanged.
     """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sp", delete=False, prefix="fabram_char_"
-    ) as f:
-        f.write(deck)
-        deck_path = f.name
+    tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="fabram_char_"))
+    deck_path = tmpdir / "deck.sp"
+    deck_path.write_text(deck)
+
+    # Copy .spiceinit into the run directory so ngspice picks it up automatically.
+    # Search: process cwd first, then home directory.
+    for candidate in (pathlib.Path(".spiceinit"), pathlib.Path.home() / ".spiceinit"):
+        if candidate.exists():
+            shutil.copy(candidate, tmpdir / ".spiceinit")
+            break
 
     try:
         proc = subprocess.run(
-            ["ngspice", "-b", deck_path],
+            ["ngspice", "-b", str(deck_path)],
             capture_output=True,
             text=True,
             timeout=timeout,
+            cwd=str(tmpdir),
         )
         output = proc.stdout + proc.stderr
     except subprocess.TimeoutExpired:
@@ -71,7 +78,7 @@ def run_ngspice(deck: str, timeout: int = 180) -> dict[str, Optional[float]]:
             "ngspice not found. Install ngspice and ensure it is on PATH."
         ) from None
     finally:
-        pathlib.Path(deck_path).unlink(missing_ok=True)
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     return _parse_output(output)
 
